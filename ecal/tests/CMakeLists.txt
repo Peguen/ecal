@@ -31,6 +31,7 @@ add_subdirectory(cpp/core_test)
 add_subdirectory(cpp/descgate_test)
 
 add_subdirectory(cpp/config_test)
+add_subdirectory(cpp/scheduler_test)
 
 if(ECAL_CORE_REGISTRATION)
   add_subdirectory(cpp/util_test)
