@@ -37,35 +37,6 @@
 
 #include <rarecpp/reflect.h>
 
-struct InputA
-{
-  int   gear;
-  float speed;
-};
-
-struct OutputA
-{
-  std::string message;
-  size_t      message_size;
-};
-
-template <typename KeyType, typename ValueType>
-class MyMap {
-public:
-    void insert(const KeyType& key, const ValueType& value) {
-        map[key] = value;
-    }
-
-    void print() const {
-        for (const auto& pair : map) {
-            std::cout << pair.first << ": " << pair.second << std::endl;
-        }
-    }
-
-private:
-    std::map<KeyType, ValueType> map;
-};
-
 template <class INPUT, class OUTPUT>
 class InputOutputHandler
 {
@@ -112,6 +83,103 @@ class InputOutputHandler
     std::vector<eCAL::CSubscriber>     m_input_subscriber;
     std::vector<eCAL::CPublisher>      m_output_publisher;
     std::vector<std::function<void()>> m_send_functions;
+};
+
+struct InputA
+{
+  int   number_1;
+  int   number_2;
+};
+
+struct OutputA
+{
+  int out_a;
+};
+
+InputOutputHandler<InputA, OutputA>* inputsOutputsA;
+
+void runA()
+{   
+    auto inputs = inputsOutputsA->GetInputs();
+
+    inputsOutputsA->GetOutputs().out_a = inputs.number_1 + inputs.number_2;
+
+    // Fill outputs and send
+    // in InputOutputHandler send after execution
+    inputsOutputsA->SendOutputs();
+};
+
+
+struct InputB
+{
+  int number_3;
+};
+
+struct OutputB
+{
+  int out_b;
+};
+
+InputOutputHandler<InputB, OutputB>* inputsOutputsB;
+
+void runB()
+{
+    auto inputs = inputsOutputsB->GetInputs();
+
+    inputsOutputsB->GetOutputs().out_b = inputs.number_3 % 15;
+
+    // Fill outputs and send
+    // in InputOutputHandler send after execution
+    inputsOutputsB->SendOutputs();
+};
+
+struct InputC
+{
+  int out_a;
+  int out_b;
+};
+
+struct OutputC
+{
+  int out_c;
+};
+
+InputOutputHandler<InputC, OutputC>* inputsOutputsC;
+
+void runC()
+{
+    auto inputs = inputsOutputsC->GetInputs();
+
+    inputsOutputsC->GetOutputs().out_c = inputs.out_a + inputs.out_b;
+
+    if (inputs.out_b > 0 && inputs.out_a % inputs.out_b == 0)
+    {
+      std::cout << std::to_string(inputs.out_a) << " is divisible by " << std::to_string(inputs.out_b) << "\n";
+    }
+    else{
+      std::cout << std::to_string(inputs.out_a) << " is NOT divisible by " << std::to_string(inputs.out_b) << "\n";
+    }
+
+    // Fill outputs and send
+    // in InputOutputHandler send after execution
+    inputsOutputsC->SendOutputs();
+};
+
+template <typename KeyType, typename ValueType>
+class MyMap {
+public:
+    void insert(const KeyType& key, const ValueType& value) {
+        map[key] = value;
+    }
+
+    void print() const {
+        for (const auto& pair : map) {
+            std::cout << pair.first << ": " << pair.second << std::endl;
+        }
+    }
+
+private:
+    std::map<KeyType, ValueType> map;
 };
 
 using AlgoRunMap = std::multimap<unsigned int, std::function<void()>>;
@@ -221,35 +289,51 @@ class Scheduler
     AlgoRunMap   m_algo_map;
     TimeCapture  m_time{1U};
     unsigned int m_cycle_count = 0;
-    unsigned int m_max_runs = 1000;
+    unsigned int m_max_runs = 10000;
     ThreadPool   m_thread_pool;
 
 };
 
 void InputAThreads()
 {
-  eCAL::CPublisher gear_pub("gear");
-  eCAL::CPublisher speed_pub("speed");
-  eCAL::CPublisher points_pub("points");
+  eCAL::CPublisher number_1_pub("number_1");
+  eCAL::CPublisher number_2_pub("number_2");
 
   int counter = 0;
-  std::string gear_buf;
-  std::string speed_buf;
-  std::string points_buf;
+  std::string number_1_buf;
+  std::string number_2_buf;
 
-  gear_buf.resize(sizeof(counter));
-  speed_buf.resize(sizeof(float));
+  number_1_buf.resize(sizeof(counter));
+  number_2_buf.resize(sizeof(counter));
 
   while (eCAL::Ok())
   {    
-    memcpy(gear_buf.data(), &counter, sizeof(counter));
-    auto float_counter = static_cast<float>(counter%120);
-    memcpy(speed_buf.data(), &float_counter, sizeof(float_counter));
+    memcpy(number_1_buf.data(), &counter, sizeof(counter));    
+    memcpy(number_2_buf.data(), &++counter, sizeof(counter));
 
-    gear_pub.Send(gear_buf);
-    speed_pub.Send(speed_buf);
-    ++counter;
+    number_1_pub.Send(number_1_buf);
+    number_2_pub.Send(number_2_buf);
+    // send every half ms
     std::this_thread::sleep_for(std::chrono::microseconds(500));
+  }
+}
+
+void InputBThreads()
+{
+  eCAL::CPublisher number_3_pub("number_3");
+
+  int counter = 0;
+  std::string number_3_buf;
+
+  number_3_buf.resize(sizeof(counter));
+
+  while (eCAL::Ok())
+  {    
+    memcpy(number_3_buf.data(), &++counter, sizeof(counter));    
+
+    number_3_pub.Send(number_3_buf);
+    // send every 1 ms
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 }
 
@@ -258,30 +342,25 @@ TEST(core_cpp_scheduler, scheduler_test)
   eCAL::Initialize();
   eCAL::Util::EnableLoopback(true);
   
-  std::thread send_thread(&InputAThreads);
+  std::thread send_thread_a(&InputAThreads);
+  std::thread send_thread_b(&InputBThreads);
+
+  inputsOutputsA = new InputOutputHandler<InputA, OutputA>();
+  inputsOutputsB = new InputOutputHandler<InputB, OutputB>();
+  inputsOutputsC = new InputOutputHandler<InputC, OutputC>();
+
   Scheduler scheduler;
 
-  InputOutputHandler<InputA, OutputA> inputsOutputs;
-  
-    std::function<void()> run = [&] {
-      static int counter = 0;
-        auto inputs = inputsOutputs.GetInputs();
-        std::cout << "InputA gear: " << inputs.gear << "\n";
-        std::cout << "InputA speed: " << inputs.speed << "\n";
-
-        inputsOutputs.GetOutputs().message = std::to_string(counter++);
-        inputsOutputs.GetOutputs().message_size = sizeof(counter);
-        // Fill outputs and send
-        // in InputOutputHandler send after execution
-        inputsOutputs.SendOutputs();
-  };
-
-  scheduler.AddAlgo(33U, run);
+  scheduler.AddAlgo(33U, runA);
+  scheduler.AddAlgo(33U, runB);
+  scheduler.AddAlgo(100U, runC);
   scheduler.RunBoyRun();
 
   eCAL::Finalize();
 
-  if (send_thread.joinable())
-    send_thread.join();
+  if (send_thread_a.joinable())
+    send_thread_a.join();
+  if (send_thread_b.joinable())
+    send_thread_b.join();
   std::cout << "Test ended." << std::endl;
 }
