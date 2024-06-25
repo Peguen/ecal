@@ -38,6 +38,29 @@
 
 #include <rarecpp/reflect.h>
 
+void printCurrentTime() {
+    // Get the current time point from the high-resolution clock
+    auto now = std::chrono::high_resolution_clock::now();
+    
+    // Get the time since the epoch in milliseconds
+    auto duration = now.time_since_epoch();
+    auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+
+    // Calculate the components of the current time
+    auto seconds = millis / 1000;
+    auto minutes = seconds / 60;
+
+    // Extract the relevant parts
+    millis = millis % 1000;
+    seconds = seconds % 60;
+    minutes = minutes % 60;
+
+    // Print the current time with minute, second, and millisecond
+    std::cout << std::setfill('0') << std::setw(2) << minutes << ":"
+              << std::setfill('0') << std::setw(2) << seconds << ":"
+              << std::setfill('0') << std::setw(3) << millis << std::endl;
+}
+
 class IOInterface
 {
   public:
@@ -117,10 +140,8 @@ struct OutputA
 
 void runA(InputA& inputs_, OutputA& outputs_)
 {     
-    std::cout << "RunA function called.\n";
     outputs_.out_a = inputs_.number_1 + inputs_.number_2;
 };
-
 
 struct InputB
 {
@@ -134,8 +155,6 @@ struct OutputB
 
 void runB(InputB& inputs_, OutputB& outputs_)
 {  
-  std::cout << "RunB function called.\n";
-
   outputs_.out_b = inputs_.number_3 % 10;
 };
 
@@ -153,8 +172,6 @@ struct OutputC
 
 void runC(InputC& inputs_, OutputC& outputs_)
 {
-    std::cout << "RunC function called.\n";
-
     outputs_.out_c = inputs_.out_a + inputs_.out_b;
 
     if (inputs_.out_b > 0 && inputs_.out_a % inputs_.out_b == 0)
@@ -164,23 +181,6 @@ void runC(InputC& inputs_, OutputC& outputs_)
     else{
       std::cout << std::to_string(inputs_.out_a) << " is NOT divisible by " << std::to_string(inputs_.out_b) << "\n";
     }
-};
-
-template <typename KeyType, typename ValueType>
-class MyMap {
-public:
-    void insert(const KeyType& key, const ValueType& value) {
-        map[key] = value;
-    }
-
-    void print() const {
-        for (const auto& pair : map) {
-            std::cout << pair.first << ": " << pair.second << std::endl;
-        }
-    }
-
-private:
-    std::map<KeyType, ValueType> map;
 };
 
 struct TimeCapture
@@ -208,7 +208,7 @@ public:
         for (size_t i = 0; i < numThreads; ++i) {
             workers.emplace_back([this] {
                 while (true) {
-                    std::pair<std::function<void()>, std::shared_ptr<IOInterface>> task;
+                    std::function<void()> task;
                     {
                         std::unique_lock<std::mutex> lock(this->queueMutex);
                         this->condition.wait(lock, [this] { return this->stop || !this->tasks.empty(); });
@@ -217,20 +217,18 @@ public:
                         task = std::move(this->tasks.front());
                         this->tasks.pop();
                     }
-                    task.first();
-                    task.second->SendOutputs();
-                }
+                    task();                }
             });
         }
     }
 
     template <class F>
-    void enqueue(F&& f, std::shared_ptr<IOInterface> interface_) {
+    void enqueue(F&& f) {
         {
             std::unique_lock<std::mutex> lock(queueMutex);
             if (stop)
                 throw std::runtime_error("enqueue on stopped ThreadPool");
-            tasks.emplace(std::make_pair(std::forward<F>(f),  interface_));
+            tasks.emplace(std::forward<F>(f));
         }
         condition.notify_one();
     }
@@ -247,13 +245,35 @@ public:
 
 private:
     std::vector<std::thread> workers;
-    std::queue<std::pair<std::function<void()>, std::shared_ptr<IOInterface>>> tasks;
+    std::queue<std::function<void()>> tasks;
     std::mutex queueMutex;
     std::condition_variable condition;
     bool stop;
 };
 
-using AlgoRunMap = std::multimap<unsigned int, std::pair<std::function<void()>, std::shared_ptr<IOInterface>>>;
+void high_precision_sleep(std::chrono::microseconds sleep_duration) {
+    if (sleep_duration.count() > 200) {
+        auto start_time = std::chrono::high_resolution_clock::now();
+        auto end_time = start_time + sleep_duration;
+        
+        while (std::chrono::high_resolution_clock::now() < end_time - std::chrono::microseconds(200)) {
+            std::this_thread::yield(); // Yield to other threads
+        }
+
+        while (std::chrono::high_resolution_clock::now() < end_time) {
+            // Busy-wait
+        }
+    } else {
+        auto start_time = std::chrono::high_resolution_clock::now();
+        auto end_time = start_time + sleep_duration;
+
+        while (std::chrono::high_resolution_clock::now() < end_time) {
+            // Busy-wait
+        }
+    }
+}
+
+using AlgoRunMap = std::multimap<unsigned int, std::function<void()>>;
 
 class Scheduler
 {
@@ -264,15 +284,18 @@ class Scheduler
     void AddAlgo(unsigned int ms_, const std::function<void(INPUT&, OUTPUT&)>& run_function_) {      
       auto io_handler = std::make_shared<InputOutputHandler<INPUT, OUTPUT>>();
       m_io_vec.emplace_back(io_handler);
+      auto handler_id = m_io_vec.size() - 1;
       
       auto& inputs_ref = std::any_cast<INPUT&>(io_handler->GetInputs());
       auto& outputs_ref = std::any_cast<OUTPUT&>(io_handler->GetOutputs());
 
-      auto run_wrapper = std::bind(run_function_, std::ref(inputs_ref), std::ref(outputs_ref));
-      
-      std::pair<std::function<void()>, std::shared_ptr<IOInterface>> algo_pair(run_wrapper, io_handler);
-
-      m_algo_map.emplace(ms_, algo_pair);      
+      // Create a lambda function that captures references to inputs_ref and outputs_ref
+      auto algo_func = [&, run_function_, handler_id]() {
+          run_function_(inputs_ref, outputs_ref);
+          m_io_vec[handler_id]->SendOutputs();
+      };
+        
+      m_algo_map.emplace(ms_, std::move(algo_func));      
     }
 
     void RunBoyRun() {
@@ -286,28 +309,28 @@ class Scheduler
 
   private:
     void RunLoop() {
-        while (m_cycle_count < m_max_runs) {
-        m_time.StartTimer();
-        for(auto& key_val : m_algo_map) {
-          if (m_cycle_count % key_val.first == 0) {
-            m_thread_pool.enqueue([&key_val] {
-              key_val.second.first;
-            }, key_val.second.second);
-          }      
-        }        
-        ++m_cycle_count;
-        auto time_diff = m_time.GetTimeDiff();
-        // std::cout << "Time Diff: " << time_diff.count() << "\n";
-        if (time_diff.count() > 0)
-          std::this_thread::sleep_for(time_diff); 
-      }  
+      while (m_cycle_count < m_max_runs) {
+      m_time.StartTimer();
+      for(auto& key_val : m_algo_map) {
+        if (m_cycle_count % key_val.first == 0) {
+          m_thread_pool.enqueue(
+            key_val.second
+          );
+        }      
+      }        
+      ++m_cycle_count;
+      auto time_diff = m_time.GetTimeDiff();
+      
+      if (time_diff.count() > 0)
+        high_precision_sleep(time_diff); 
+    }  
     }
     
     AlgoRunMap   m_algo_map; 
     std::vector<std::shared_ptr<IOInterface>> m_io_vec;   
     TimeCapture  m_time{1U};
     unsigned int m_cycle_count = 0;
-    unsigned int m_max_runs = 1500;
+    unsigned int m_max_runs = 100000;
     ThreadPool   m_thread_pool;
 
 };
