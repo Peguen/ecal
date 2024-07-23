@@ -26,8 +26,6 @@
 #include <ecal/ecal_payload_writer.h>
 #include <ecal/ecal_process.h>
 
-#include "config/ecal_config_reader_hlp.h"
-
 #if ECAL_CORE_REGISTRATION
 #include "registration/ecal_registration_provider.h"
 #endif
@@ -35,6 +33,7 @@
 #include "ecal_writer.h"
 #include "ecal_writer_base.h"
 #include "ecal_writer_buffer_payload.h"
+#include "ecal_global_accessors.h"
 #include "ecal_transport_layer.h"
 
 #include <chrono>
@@ -286,7 +285,7 @@ namespace eCAL
         wattr.clock     = m_clock;
         wattr.hash      = snd_hash;
         wattr.time      = time_;
-        wattr.loopback  = m_config.udp.loopback;
+        wattr.loopback  = eCAL::GetConfiguration().registration.loopback;
 
         // prepare send
         if (m_writer_udp->PrepareWrite(wattr))
