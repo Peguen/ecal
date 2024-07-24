@@ -32,7 +32,7 @@
 
 namespace eCAL
 {
-  CDataWriterUdpMC::CDataWriterUdpMC(const std::string& host_name_, const std::string& topic_name_, const std::string& topic_id_, const Publisher::UDP::Configuration& udp_config_) :
+  CDataWriterUdpMC::CDataWriterUdpMC(const std::string& host_name_, const std::string& topic_name_, const std::string& topic_id_, const Publisher::Layer::UDP::Configuration& udp_config_) :
     m_config(udp_config_)
   {
     m_host_name   = host_name_;
@@ -45,7 +45,7 @@ namespace eCAL
     attr.port      = UDP::GetPayloadPort();
     attr.ttl       = UDP::GetMulticastTtl();
     attr.broadcast = UDP::IsBroadcast();
-    attr.sndbuf    = eCAL::GetConfiguration().transport_layer.udp.send_buffer;
+    attr.sndbuf    = UDP::GetSendBufferSize();
 
     // create udp/sample sender with activated loop-back
     attr.loopback = true;
