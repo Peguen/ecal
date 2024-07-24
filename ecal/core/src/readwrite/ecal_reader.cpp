@@ -410,13 +410,13 @@ namespace eCAL
     switch (layer_)
     {
     case tl_ecal_udp:
-      if (!m_config.udp.enable) return 0;
+      if (!m_config.layer.udp.enable) return 0;
       break;
     case tl_ecal_shm:
-      if (!m_config.shm.enable) return 0;
+      if (!m_config.layer.shm.enable) return 0;
       break;
     case tl_ecal_tcp:
-      if (!m_config.tcp.enable) return 0;
+      if (!m_config.layer.tcp.enable) return 0;
       break;
     default:
       break;
@@ -679,7 +679,7 @@ namespace eCAL
   void CDataReader::StartTransportLayer()
   {
 #if ECAL_CORE_TRANSPORT_UDP
-    if (m_config.udp.enable)
+    if (m_config.layer.udp.enable)
     {
       // flag enabled
       m_layers.udp.read_enabled = true;
@@ -690,7 +690,7 @@ namespace eCAL
 #endif
 
 #if ECAL_CORE_TRANSPORT_SHM
-    if (m_config.shm.enable)
+    if (m_config.layer.shm.enable)
     {
       // flag enabled
       m_layers.shm.read_enabled = true;
@@ -701,7 +701,7 @@ namespace eCAL
 #endif
 
 #if ECAL_CORE_TRANSPORT_TCP
-    if (m_config.tcp.enable)
+    if (m_config.layer.tcp.enable)
     {
       // flag enabled
       m_layers.tcp.read_enabled = true;
@@ -715,7 +715,7 @@ namespace eCAL
   void CDataReader::StopTransportLayer()
   {
 #if ECAL_CORE_TRANSPORT_UDP
-    if (m_config.udp.enable)
+    if (m_config.layer.udp.enable)
     {
       // flag disabled
       m_layers.udp.read_enabled = false;
@@ -726,7 +726,7 @@ namespace eCAL
 #endif
 
 #if ECAL_CORE_TRANSPORT_SHM
-    if (m_config.shm.enable)
+    if (m_config.layer.shm.enable)
     {
       // flag disabled
       m_layers.shm.read_enabled = false;
@@ -737,7 +737,7 @@ namespace eCAL
 #endif
 
 #if ECAL_CORE_TRANSPORT_TCP
-    if (m_config.tcp.enable)
+    if (m_config.layer.tcp.enable)
     {
       // flag disabled
       m_layers.tcp.read_enabled = false;
