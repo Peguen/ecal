@@ -115,7 +115,7 @@ publisher:
       # Force connected subscribers to send acknowledge event after processing the message.
       # The publisher send call is blocked on this event with this timeout (0 == no handshake).
       acknowledge_timeout_ms: 0
-      # Maximum number of used buffers (needs to be greater than 1, default = 1)
+      # Maximum number of used buffers (needs to be greater than 0, default = 1)
       memfile_buffer_count: 1
     
     # Base configuration for UDP publisher
@@ -134,8 +134,8 @@ publisher:
   share_topic_description: true
   # Priority list for layer usage in local mode (Default: SHM > UDP > TCP)
   priority_local: ["shm", "udp", "tcp"]
-  # Priority list for layer usage in cloud mode (Default: UDP > TCP)
-  priority_network: ["udp", "tcp"]
+  # Priority list for layer usage in network mode (Default: UDP > TCP)
+  priority_remote: ["udp", "tcp"]
 
 
 # Subscriber specific base configuration
