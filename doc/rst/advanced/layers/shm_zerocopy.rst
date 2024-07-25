@@ -308,16 +308,21 @@ To send this payload you just need a few lines of code:
 
 .. code-block:: cpp
 
+  #include <ecal/config/publisher.h>
+
   int main(int argc, char** argv)
   {
     // initialize eCAL API
     eCAL::Initialize(argc, argv, "binary_payload_snd");
 
-    // publisher for topic "simple_struct"
-    eCAL::CPublisher pub("simple_struct");
+    // Create a publisher configuration object
+    eCAL::Publisher::Configuration pub_config;
 
-    // turn zero copy mode on
-    pub.ShmEnableZeroCopy(true);
+    // Set the option for zero copy mode in layer->shm->zero_copy_mode to true
+    pub_config.layer.shm.zero_copy_mode = true;
+
+    // publisher for topic "simple_struct"
+    eCAL::CPublisher pub("simple_struct", pub_config);
 
     // create the simple struct payload
     CStructPayload struct_payload;

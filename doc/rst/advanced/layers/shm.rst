@@ -51,8 +51,7 @@ To support one to many publisher/subscriber connections, the publisher creates o
 Configuration
 =============
 
-The SHM Layer is set to ``auto`` (= 2) by default.
-This means, that it is used automatically for all messages that need to be transmitted inside a single host.
+The SHM Layer is set to ``enable`` by default.
 
 The system-configuration-parameters in the :file:`ecal.yaml` are:
 
@@ -66,7 +65,6 @@ The system-configuration-parameters in the :file:`ecal.yaml` are:
         # Enable layer
         enable: true
         [..]
-
 
 There are a few options for tweaking the communication.
 Those options are explained below.
@@ -94,7 +92,7 @@ The handshake mechanism can be activated in the :file:`ecal.yaml`:
         [..]
         # Force connected subscribers to send acknowledge event after processing the message.
         # The publisher send call is blocked on this event with this timeout (0 == no handshake).
-        acknowledge_timeout_ms: 0
+        acknowledge_timeout_ms: 5
         [..]
 
 If the parameter is set to a non-zero timeout, the publisher will create an additional event and inform the subscriber to fire this event when the transmission of the payload is completed.
@@ -171,7 +169,7 @@ You can activate the feature in the following ways.
         shm:
           [..]
           # Maximum number of used buffers (needs to be greater than 0, default = 1)
-          memfile_buffer_count: 1
+          memfile_buffer_count: 3
 
 - **Use multi-buffering for a single publisher (from your code):**
 
