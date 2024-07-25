@@ -22,22 +22,38 @@ Enabling eCAL Zero Copy
 
   Zero Copy can be enabled as system default from the :file:`ecal.yaml` file like follows:
 
-  .. code-block:: ini
+  .. code-block:: yaml
 
-     [publisher]
-     memfile_zero_copy = 1
+    # Publisher specific base settings
+    publisher:
+      layer:
+      # Base configuration for shared memory publisher
+        shm:
+          [..]
+          # Enable zero copy shared memory transport mode
+          zero_copy_mode: true
+
 
 - **Use zero-copy for a single publisher (from your code):**
 
-  Zero-copy can be activated (or deactivated) for a single publisher from the eCAL API:
+  Zero-copy can be activated (or deactivated) for a single publisher by using a specific publisher configuration:
 
   .. code-block:: cpp
+    
+    #include <ecal/config/publisher.h>
 
-     // Create a publisher (topic name "person")
-     eCAL::protobuf::CPublisher<pb::People::Person> pub("person");
+    ...
 
-     // Enable zero-copy for this publisher
-     pub.ShmEnableZeroCopy(true);
+    // Create a publisher configuration object
+    eCAL::Publisher::Configuration pub_config;
+
+    // Set the option for zero copy mode in layer->shm->zero_copy_mode to true
+    pub_config.layer.shm.zero_copy_mode = true;
+
+    // Create a publisher (topic name "person") and pass the configuration object
+    eCAL::protobuf::CPublisher<pb::People::Person> pub("person", pub_config);
+
+    ...
 
   Keep in mind, that using protobuf for serialization will still:
 
@@ -369,6 +385,6 @@ Default eCAL SHM vs. Full Zero Copy SHM
 Combining Zero Copy and Multibuffering
 ======================================
 
-For technical reasons the Full Zero Copy mode described above is turned of if the Multibuffering option ``CPublisher::ShmSetBufferCount`` is activated. 
+For technical reasons the Full Zero Copy mode described above is turned off if the Multibuffering option ``CPublisher::ShmSetBufferCount`` is activated. 
 
 Default (subscriber side) Zero Copy is working in combination with Multibuffering as described.

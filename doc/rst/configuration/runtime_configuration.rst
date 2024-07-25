@@ -12,7 +12,7 @@ The corresponding structure reflects the configuration file (:ref:`configuration
 Custom types
 ============
 
-In order to rule out configuration errors, custom datatypes for IP addresses (IpAddressV4) and sizes (constrained integer) are introduced.
+In order to rule out configuration errors, custom datatypes for IP addresses (IpAddressV4) and sizes (ConstrainedInteger) are introduced.
 
 **IpAddressV4:** For assigning an IP address simply assign a string with the desired address. 
 Decimal and hexadecimal format is supported. 
