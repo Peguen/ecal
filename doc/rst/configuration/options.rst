@@ -69,7 +69,7 @@ Registration settings are listed in the section ``registration``
       ``<hostname>``, default ``""``
 
       host group name that enables interprocess mechanisms across (virtual) host borders (e.g. Docker);
-      by defualt equivalent to local host name
+      by default equivalent to local host name
 
   .. option:: network_enabled
 

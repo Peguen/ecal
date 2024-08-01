@@ -24,6 +24,8 @@ find_package(ecaludp          REQUIRED)
 
 if (ECAL_CORE_CONFIGURATION)
   find_package(yaml-cpp       REQUIRED)
+  include(${ECAL_PROJECT_ROOT}/thirdparty/yaml-cpp/compatibility-yaml-cpp.cmake)
+  yaml_cpp_create_compatibility_targets()
 endif()
 
 if (ECAL_CORE_COMMAND_LINE)
@@ -287,6 +289,12 @@ if (ECAL_CORE_REGISTRATION)
       src/registration/ecal_registration_provider.h
       src/registration/ecal_registration_receiver.cpp
       src/registration/ecal_registration_receiver.h
+      src/registration/ecal_registration_sample_applier.cpp
+      src/registration/ecal_registration_sample_applier.h
+      src/registration/ecal_registration_sample_applier_gates.cpp
+      src/registration/ecal_registration_sample_applier_gates.h      
+      src/registration/ecal_registration_sample_applier_user.cpp
+      src/registration/ecal_registration_sample_applier_user.h
       src/registration/ecal_registration_sender.h
       src/registration/udp/ecal_registration_receiver_udp.cpp
       src/registration/udp/ecal_registration_receiver_udp.h

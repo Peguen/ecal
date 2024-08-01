@@ -120,9 +120,6 @@ namespace eCAL
 
     // mark as created
     m_created = true;
-
-    // register
-    Register(false);
   }
 
   CDataWriter::~CDataWriter()
@@ -227,7 +224,7 @@ namespace eCAL
         if (m_writer_shm->PrepareWrite(wattr))
         {
           // register new to update listening subscribers and rematch
-          Register(true);
+          Register();
           Process::SleepMS(5);
         }
 
@@ -291,7 +288,7 @@ namespace eCAL
         if (m_writer_udp->PrepareWrite(wattr))
         {
           // register new to update listening subscribers and rematch
-          Register(true);
+          Register();
           Process::SleepMS(5);
         }
 
@@ -364,8 +361,6 @@ namespace eCAL
 
   bool CDataWriter::SetDataTypeInformation(const SDataTypeInformation& topic_info_)
   {
-    // Does it even make sense to register if the info is the same???
-    const bool force = m_topic_info != topic_info_;
     m_topic_info = topic_info_;
 
 #ifndef NDEBUG
@@ -373,17 +368,11 @@ namespace eCAL
     Logging::Log(log_level_debug2, m_topic_name + "::CDataWriter::SetDescription");
 #endif
 
-    // register it
-    Register(force);
-
     return(true);
   }
 
   bool CDataWriter::SetAttribute(const std::string& attr_name_, const std::string& attr_value_)
   {
-    auto current_val = m_attr.find(attr_name_);
-
-    const bool force = current_val == m_attr.end() || current_val->second != attr_value_;
     m_attr[attr_name_] = attr_value_;
 
 #ifndef NDEBUG
@@ -391,25 +380,17 @@ namespace eCAL
     Logging::Log(log_level_debug2, m_topic_name + "::CDataWriter::SetAttribute");
 #endif
 
-    // register it
-    Register(force);
-
     return(true);
   }
 
   bool CDataWriter::ClearAttribute(const std::string& attr_name_)
   {
-    auto force = m_attr.find(attr_name_) != m_attr.end();
-
     m_attr.erase(attr_name_);
 
 #ifndef NDEBUG
     // log it
     Logging::Log(log_level_debug2, m_topic_name + "::CDataWriter::ClearAttribute");
 #endif
-
-    // register it
-    Register(force);
 
     return(true);
   }
@@ -484,10 +465,10 @@ namespace eCAL
       StartUdpLayer();
       break;
     case tl_ecal_shm:
-      if (StartShmLayer()) Register(true);
+      StartShmLayer();
       break;
     case tl_ecal_tcp:
-      if (StartTcpLayer()) Register(true);
+      StartTcpLayer();
       break;
     default:
       break;
@@ -546,25 +527,6 @@ namespace eCAL
 #endif
   }
 
-  void CDataWriter::RefreshRegistration()
-  {
-    if (!m_created) return;
-
-    // register without send
-    Register(false);
-
-    // check connection timeouts
-    {
-      const std::lock_guard<std::mutex> lock(m_sub_map_mtx);
-      m_sub_map.erase_expired();
-
-      if (m_sub_map.empty())
-      {
-        FireDisconnectEvent();
-      }
-    }
-  }
-
   void CDataWriter::RefreshSendCounter()
   {
     // increase write clock
@@ -604,13 +566,52 @@ namespace eCAL
     return(out.str());
   }
 
-  bool CDataWriter::Register(bool force_)
+  void CDataWriter::Register()
   {
 #if ECAL_CORE_REGISTRATION
-    if (!m_created)           return(false);
-    if (m_topic_name.empty()) return(false);
+    if (g_registration_provider() != nullptr) g_registration_provider()->RegisterSample(GetRegistrationSample());
 
-    // create command parameter
+#ifndef NDEBUG
+    // log it
+    Logging::Log(log_level_debug4, m_topic_name + "::CDataWriter::Register");
+#endif
+#endif // ECAL_CORE_REGISTRATION
+  }
+
+  void CDataWriter::Unregister()
+  {
+#if ECAL_CORE_REGISTRATION
+    if (g_registration_provider() != nullptr) g_registration_provider()->UnregisterSample(GetUnregistrationSample());
+
+#ifndef NDEBUG
+    // log it
+    Logging::Log(log_level_debug4, m_topic_name + "::CDataWriter::Unregister");
+#endif
+#endif // ECAL_CORE_REGISTRATION
+  }
+
+  void CDataWriter::CheckConnections()
+  {
+    const std::lock_guard<std::mutex> lock(m_sub_map_mtx);
+    m_sub_map.erase_expired();
+
+    if (m_sub_map.empty())
+    {
+      FireDisconnectEvent();
+    }
+  }
+
+  Registration::Sample CDataWriter::GetRegistration()
+  {
+    // check connection timeouts
+    CheckConnections();
+
+    return GetRegistrationSample();
+  }
+
+  Registration::Sample CDataWriter::GetRegistrationSample()
+  {
+    // create registration sample
     Registration::Sample ecal_reg_sample;
     ecal_reg_sample.cmd_type = bct_reg_publisher;
 
@@ -700,27 +701,12 @@ namespace eCAL
     ecal_reg_sample_topic.connections_loc = static_cast<int32_t>(loc_connections);
     ecal_reg_sample_topic.connections_ext = static_cast<int32_t>(ext_connections);
 
-    // register publisher
-    if (g_registration_provider() != nullptr) g_registration_provider()->ApplySample(ecal_reg_sample, force_);
-
-#ifndef NDEBUG
-    // log it
-    Logging::Log(log_level_debug4, m_topic_name + "::CDataWriter::Register");
-#endif
-
-    return(true);
-#else  // ECAL_CORE_REGISTRATION
-(void)force_;
-return(false);
-#endif // ECAL_CORE_REGISTRATION
+    return ecal_reg_sample;
   }
 
-  bool CDataWriter::Unregister()
+  Registration::Sample CDataWriter::GetUnregistrationSample()
   {
-#if ECAL_CORE_REGISTRATION
-    if (m_topic_name.empty()) return(false);
-
-    // create command parameter
+    // create unregistration sample
     Registration::Sample ecal_unreg_sample;
     ecal_unreg_sample.cmd_type = bct_unreg_publisher;
 
@@ -733,18 +719,7 @@ return(false);
     ecal_reg_sample_topic.tid    = m_topic_id;
     ecal_reg_sample_topic.uname  = Process::GetUnitName();
 
-    // unregister publisher
-    if (g_registration_provider() != nullptr) g_registration_provider()->ApplySample(ecal_unreg_sample, false);
-
-#ifndef NDEBUG
-    // log it
-    Logging::Log(log_level_debug4, m_topic_name + "::CDataWriter::UnRegister");
-#endif
-
-    return(true);
-#else  // ECAL_CORE_REGISTRATION
-    return(false);
-#endif // ECAL_CORE_REGISTRATION
+    return ecal_unreg_sample;
   }
 
   void CDataWriter::FireConnectEvent(const std::string& tid_, const SDataTypeInformation& tinfo_)
@@ -821,6 +796,9 @@ return(false);
     // create writer
     m_writer_udp = std::make_unique<CDataWriterUdpMC>(m_host_name, m_topic_name, m_topic_id, m_config.layer.udp);
 
+    // register activated layer
+    Register();
+
 #ifndef NDEBUG
     Logging::Log(log_level_debug2, m_topic_name + "::CDataWriter::ActivateUdpLayer::WRITER_CREATED");
 #endif
@@ -844,6 +822,9 @@ return(false);
     // create writer
     m_writer_shm = std::make_unique<CDataWriterSHM>(m_host_name, m_topic_name, m_topic_id, m_config.layer.shm);
 
+    // register activated layer
+    Register();
+
 #ifndef NDEBUG
     Logging::Log(log_level_debug2, m_topic_name + "::CDataWriter::ActivateShmLayer::WRITER_CREATED");
 #endif
@@ -866,6 +847,9 @@ return(false);
 
     // create writer
     m_writer_tcp = std::make_unique<CDataWriterTCP>(m_host_name, m_topic_name, m_topic_id, m_config.layer.tcp);
+
+    // register activated layer
+    Register();
 
 #ifndef NDEBUG
     Logging::Log(log_level_debug2, m_topic_name + "::CDataWriter::ActivateTcpLayer::WRITER_CREATED");
